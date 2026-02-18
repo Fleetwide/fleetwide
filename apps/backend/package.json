@@ -1,0 +1,25 @@
+{
+  "name": "@fleetwide/backend",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc --project tsconfig.build.json",
+    "dev": "tsx watch src/index.ts",
+    "start": "node dist/index.js",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@fleetwide/core": "workspace:*",
+    "@fleetwide/database": "workspace:*",
+    "@fleetwide/repo-manager": "workspace:*",
+    "@hono/node-server": "^1.13.0",
+    "hono": "^4.7.0"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.3"
+  }
+}
