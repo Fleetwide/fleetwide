@@ -15,6 +15,7 @@ import { ApproveSession } from '../../application/sessions/ApproveSession';
 import { RejectSession } from '../../application/sessions/RejectSession';
 import { ExecInSession } from '../../application/sessions/ExecInSession';
 import { DestroySession } from '../../application/sessions/DestroySession';
+import { RunAgent } from '../../application/sessions/RunAgent';
 import { SessionQueries } from '../../application/sessions/SessionQueries';
 
 @Controller('sessions')
@@ -26,6 +27,7 @@ export class SessionsController {
     @Inject(RejectSession) private rejectSession: RejectSession,
     @Inject(ExecInSession) private execInSession: ExecInSession,
     @Inject(DestroySession) private destroySession: DestroySession,
+    @Inject(RunAgent) private runAgent: RunAgent,
     @Inject(SessionQueries) private queries: SessionQueries,
   ) {}
 
@@ -85,6 +87,20 @@ export class SessionsController {
   @Get(':id/branch')
   async getBranch(@Param('id') id: string) {
     const data = await this.queries.getBranch(id);
+    return { data };
+  }
+
+  @Post(':id/run')
+  @HttpCode(202)
+  async run(@Param('id') id: string) {
+    const data = await this.runAgent.execute(id);
+    return { data };
+  }
+
+  @Post(':id/abort')
+  @HttpCode(200)
+  async abort(@Param('id') id: string) {
+    const data = await this.runAgent.abort(id);
     return { data };
   }
 

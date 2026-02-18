@@ -537,17 +537,17 @@ The complete flow when a user runs an agent against a workspace:
 ### Success Criteria — Phase 3
 
 #### Automated Verification:
-- [ ] `pnpm turbo build && pnpm turbo typecheck` passes with `@fleetwide/agent-engine`
+- [x] `pnpm turbo build && pnpm turbo typecheck` passes with `@fleetwide/agent-engine`
 - [ ] `pnpm turbo test` — agent-engine unit tests pass (mock provider + mock orchestrator)
-- [ ] Agent bash tool executes commands inside the container (not on host)
-- [ ] Agent file operations read/write files inside the container
-- [ ] Agent messages are persisted to DB in real-time during agent run
-- [ ] After agent completes, changes are committed and pushed to GitHub
-- [ ] Session status transitions correctly: starting → setup → running → finalizing → preview
-- [ ] Container stays alive in 'preview' status (not immediately destroyed)
-- [ ] Approve/reject work both when container is alive and after it's been destroyed
-- [ ] Agent abort stops the agent and updates session status
-- [ ] E2E tests cover the full agent run lifecycle (with mocked AI provider)
+- [x] Agent bash tool executes commands inside the container (not on host)
+- [x] Agent file operations read/write files inside the container
+- [x] Agent messages are persisted to DB in real-time during agent run
+- [x] After agent completes, changes are committed and pushed to GitHub
+- [x] Session status transitions correctly: starting → setup → running → finalizing → preview
+- [x] Container stays alive in 'preview' status (not immediately destroyed)
+- [x] Approve/reject work both when container is alive and after it's been destroyed
+- [x] Agent abort stops the agent and updates session status
+- [x] E2E tests cover the full agent run lifecycle (with mocked AI provider)
 
 #### Manual Verification:
 - [ ] Run agent against a Node.js workspace → agent can `npm test`, edit files, etc.

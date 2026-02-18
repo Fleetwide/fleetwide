@@ -17,6 +17,7 @@
     "@fleetwide/core": "workspace:*",
     "@fleetwide/database": "workspace:*",
     "@fleetwide/repo-manager": "workspace:*",
+    "@fleetwide/agent-engine": "workspace:*",
     "@fleetwide/workspace-manager": "workspace:*",
     "@nestjs/common": "^11.0.0",
     "@nestjs/config": "^4.0.0",

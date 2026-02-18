@@ -7,19 +7,24 @@ import { SessionsController } from '../interfaces/http/sessions.controller';
 import { SessionRepository } from '../ports/repositories/SessionRepository';
 import { WorkspaceRepository } from '../ports/repositories/WorkspaceRepository';
 import { GitHubPullRequestService } from '../ports/services/GitHubPullRequestService';
+import { AgentRunnerService } from '../ports/services/AgentRunnerService';
 import { DrizzleSessionRepository } from '../infrastructure/repositories/DrizzleSessionRepository';
 import { OctokitPullRequestService } from '../infrastructure/services/OctokitPullRequestService';
+import { AgentEngineRunnerService } from '../infrastructure/services/AgentEngineRunnerService';
 import { StartSession } from '../application/sessions/StartSession';
 import { FinalizeSession } from '../application/sessions/FinalizeSession';
 import { ApproveSession } from '../application/sessions/ApproveSession';
 import { RejectSession } from '../application/sessions/RejectSession';
 import { ExecInSession } from '../application/sessions/ExecInSession';
 import { DestroySession } from '../application/sessions/DestroySession';
+import { RunAgent } from '../application/sessions/RunAgent';
 import { SessionQueries } from '../application/sessions/SessionQueries';
+import { SessionsGateway } from '../interfaces/ws/sessions.gateway';
 import { WorkspacesModule } from './workspaces.module';
+import { WsModule } from './ws.module';
 
 @Module({
-  imports: [WorkspacesModule],
+  imports: [WorkspacesModule, WsModule],
   controllers: [SessionsController],
   providers: [
     // Port → implementation bindings
@@ -82,6 +87,25 @@ import { WorkspacesModule } from './workspaces.module';
       inject: [SessionRepository, TOKENS.CONTAINER_SERVICE],
       useFactory: (repo: SessionRepository, cs: ContainerService) =>
         new SessionQueries(repo, cs),
+    },
+    // Agent runner
+    {
+      provide: AgentRunnerService,
+      inject: [TOKENS.SESSION_ORCHESTRATOR, SessionsGateway, TOKENS.ANTHROPIC_API_KEY],
+      useFactory: (
+        orch: SessionOrchestrator,
+        gateway: SessionsGateway,
+        apiKey: string,
+      ) => new AgentEngineRunnerService(orch, gateway, apiKey),
+    },
+    {
+      provide: RunAgent,
+      inject: [SessionRepository, AgentRunnerService, TOKENS.SESSION_ORCHESTRATOR],
+      useFactory: (
+        repo: SessionRepository,
+        agentRunner: AgentRunnerService,
+        orch: SessionOrchestrator,
+      ) => new RunAgent(repo, agentRunner, orch),
     },
   ],
 })

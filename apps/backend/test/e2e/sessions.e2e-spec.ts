@@ -314,6 +314,65 @@ describe('Sessions (e2e)', () => {
     });
   });
 
+  describe('POST /api/sessions/:id/run', () => {
+    it('starts agent run for a running session', async () => {
+      const { workspace } = await seed.workspaceWithRepos(db);
+      const session = await seed.session(db, {
+        workspaceId: workspace.id,
+        status: 'running',
+        prompt: 'Fix the tests',
+      });
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/sessions/${session.id}/run`)
+        .expect(202);
+
+      expect(response.body.data.started).toBe(true);
+      expect(response.body.data.sessionId).toBe(session.id);
+    });
+
+    it('returns 404 for non-existent session', async () => {
+      await request(app.getHttpServer())
+        .post('/api/sessions/non-existent/run')
+        .expect(404);
+    });
+
+    it('returns validation error for non-running session', async () => {
+      const { workspace } = await seed.workspaceWithRepos(db);
+      const session = await seed.session(db, {
+        workspaceId: workspace.id,
+        status: 'preview',
+      });
+
+      await request(app.getHttpServer())
+        .post(`/api/sessions/${session.id}/run`)
+        .expect(400);
+    });
+  });
+
+  describe('POST /api/sessions/:id/abort', () => {
+    it('aborts agent run for a session', async () => {
+      const { workspace } = await seed.workspaceWithRepos(db);
+      const session = await seed.session(db, {
+        workspaceId: workspace.id,
+        status: 'running',
+      });
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/sessions/${session.id}/abort`)
+        .expect(200);
+
+      expect(response.body.data.aborted).toBe(true);
+      expect(mocks.agentRunner.abort).toHaveBeenCalledWith(session.id);
+    });
+
+    it('returns 404 for non-existent session', async () => {
+      await request(app.getHttpServer())
+        .post('/api/sessions/non-existent/abort')
+        .expect(404);
+    });
+  });
+
   describe('POST /api/sessions/:id/finalize', () => {
     it('finalizes a running session', async () => {
       const { workspace } = await seed.workspaceWithRepos(db);

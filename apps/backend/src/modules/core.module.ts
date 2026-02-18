@@ -100,6 +100,12 @@ import { TOKENS } from '../core/injection-tokens';
       useFactory: (orchestrator: SessionOrchestrator) =>
         new IdleTimeoutManager(orchestrator),
     },
+    {
+      provide: TOKENS.ANTHROPIC_API_KEY,
+      inject: [ConfigService],
+      useFactory: (config: ConfigService) =>
+        config.get<string>('ANTHROPIC_API_KEY') ?? '',
+    },
   ],
   exports: [
     TOKENS.DATABASE,
@@ -113,6 +119,7 @@ import { TOKENS } from '../core/injection-tokens';
     TOKENS.VOLUME_SERVICE,
     TOKENS.SESSION_ORCHESTRATOR,
     TOKENS.IDLE_TIMEOUT_MANAGER,
+    TOKENS.ANTHROPIC_API_KEY,
   ],
 })
 export class CoreModule implements OnApplicationBootstrap, OnApplicationShutdown {

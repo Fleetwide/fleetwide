@@ -2,11 +2,19 @@ import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import { AppModule } from '../../src/modules/app.module';
 import { FleetwideExceptionFilter } from '../../src/filters/fleetwide-exception.filter';
+import { AgentRunnerService } from '../../src/ports/services/AgentRunnerService';
 import { TOKENS } from '../../src/core/injection-tokens';
 import { vi } from 'vitest';
 
 function createMocks() {
   return {
+    anthropicApiKey: 'test-api-key',
+    agentRunner: {
+      run: vi.fn().mockResolvedValue({
+        tokenUsage: { inputTokens: 100, outputTokens: 50, totalTokens: 150, costUsd: 0.001 },
+      }),
+      abort: vi.fn(),
+    },
     dockerClient: {},
     gitService: {
       pull: vi.fn().mockResolvedValue({ updated: true, commitHash: 'abc123' }),
@@ -89,6 +97,10 @@ export async function createTestApp(): Promise<{
     .useValue(mocks.githubDiscoveryService)
     .overrideProvider(TOKENS.GITHUB_IMPORT_SERVICE)
     .useValue(mocks.githubImportService)
+    .overrideProvider(TOKENS.ANTHROPIC_API_KEY)
+    .useValue(mocks.anthropicApiKey)
+    .overrideProvider(AgentRunnerService)
+    .useValue(mocks.agentRunner)
     .compile();
 
   const app = moduleFixture.createNestApplication();
