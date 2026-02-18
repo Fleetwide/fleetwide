@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pnpm install:*)",
+      "Bash(pnpm --filter @fleetwide/database build:*)",
+      "Bash(pnpm turbo typecheck:*)",
+      "Bash(pnpm db:generate:*)",
+      "Bash(pnpm turbo build:*)",
+      "WebSearch",
+      "WebFetch(domain:docs.docker.com)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)"
+    ]
+  }
+}
