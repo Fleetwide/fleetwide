@@ -4,8 +4,8 @@ import {
   generateId,
   ValidationError,
 } from '@fleetwide/core';
-import { WorkspaceRepository } from '../../ports/repositories/WorkspaceRepository';
-import { UnitOfWork } from '../../ports/uow/UnitOfWork';
+import type { WorkspaceRepository } from '../../ports/repositories/WorkspaceRepository';
+import type { UnitOfWork } from '../../ports/uow/UnitOfWork';
 
 export class CreateWorkspace {
   constructor(

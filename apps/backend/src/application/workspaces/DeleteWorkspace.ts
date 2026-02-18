@@ -1,6 +1,6 @@
 import { NotFoundError } from '@fleetwide/core';
 import type { VolumeService } from '@fleetwide/workspace-manager';
-import { WorkspaceRepository } from '../../ports/repositories/WorkspaceRepository';
+import type { WorkspaceRepository } from '../../ports/repositories/WorkspaceRepository';
 
 export class DeleteWorkspace {
   constructor(

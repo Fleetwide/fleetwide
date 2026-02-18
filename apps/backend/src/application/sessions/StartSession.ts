@@ -6,7 +6,7 @@ import {
   ValidationError,
 } from '@fleetwide/core';
 import type { SessionOrchestrator } from '@fleetwide/workspace-manager';
-import { WorkspaceRepository } from '../../ports/repositories/WorkspaceRepository';
+import type { WorkspaceRepository } from '../../ports/repositories/WorkspaceRepository';
 
 export class StartSession {
   constructor(

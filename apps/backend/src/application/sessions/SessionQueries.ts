@@ -1,6 +1,6 @@
 import { NotFoundError } from '@fleetwide/core';
 import type { ContainerService } from '@fleetwide/workspace-manager';
-import { SessionRepository } from '../../ports/repositories/SessionRepository';
+import type { SessionRepository } from '../../ports/repositories/SessionRepository';
 
 export class SessionQueries {
   constructor(

@@ -1,7 +1,6 @@
-import { eq, and, lt, inArray } from 'drizzle-orm';
+import { eq, inArray } from 'drizzle-orm';
 import {
   createLogger,
-  generateId,
   type WorkspaceSessionStatus,
   type SessionMessage,
   type DiffSummary,

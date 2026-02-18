@@ -1,7 +1,7 @@
 import { NotFoundError, ValidationError } from '@fleetwide/core';
 import type { SessionOrchestrator } from '@fleetwide/workspace-manager';
-import { SessionRepository } from '../../ports/repositories/SessionRepository';
-import { GitHubPullRequestService } from '../../ports/services/GitHubPullRequestService';
+import type { SessionRepository } from '../../ports/repositories/SessionRepository';
+import type { GitHubPullRequestService } from '../../ports/services/GitHubPullRequestService';
 
 export class RejectSession {
   constructor(

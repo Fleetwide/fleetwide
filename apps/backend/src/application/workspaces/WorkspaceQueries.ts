@@ -1,5 +1,5 @@
 import { NotFoundError } from '@fleetwide/core';
-import { WorkspaceRepository } from '../../ports/repositories/WorkspaceRepository';
+import type { WorkspaceRepository } from '../../ports/repositories/WorkspaceRepository';
 
 export class WorkspaceQueries {
   constructor(private workspaceRepo: WorkspaceRepository) {}

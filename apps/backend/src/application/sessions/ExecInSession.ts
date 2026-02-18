@@ -1,6 +1,6 @@
 import { NotFoundError, ValidationError } from '@fleetwide/core';
 import type { SessionOrchestrator } from '@fleetwide/workspace-manager';
-import { SessionRepository } from '../../ports/repositories/SessionRepository';
+import type { SessionRepository } from '../../ports/repositories/SessionRepository';
 
 export class ExecInSession {
   constructor(

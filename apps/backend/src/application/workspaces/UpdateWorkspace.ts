@@ -1,5 +1,5 @@
 import { validate, updateWorkspaceSchema, NotFoundError, ValidationError } from '@fleetwide/core';
-import { WorkspaceRepository } from '../../ports/repositories/WorkspaceRepository';
+import type { WorkspaceRepository } from '../../ports/repositories/WorkspaceRepository';
 
 export class UpdateWorkspace {
   constructor(private workspaceRepo: WorkspaceRepository) {}

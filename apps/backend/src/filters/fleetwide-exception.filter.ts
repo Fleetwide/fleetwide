@@ -1,5 +1,6 @@
-import { Catch, ExceptionFilter, ArgumentsHost, HttpException } from '@nestjs/common';
-import { Response } from 'express';
+import type { ExceptionFilter, ArgumentsHost} from '@nestjs/common';
+import { Catch, HttpException } from '@nestjs/common';
+import type { Response } from 'express';
 import { FleetwideError } from '@fleetwide/core';
 
 @Catch()

@@ -1,4 +1,4 @@
-import Docker from 'dockerode';
+import type Docker from 'dockerode';
 import { createLogger } from '@fleetwide/core';
 
 const logger = createLogger({ name: 'volume-service' });

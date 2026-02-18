@@ -1,8 +1,9 @@
+import type {
+  OnApplicationBootstrap,
+  OnApplicationShutdown} from '@nestjs/common';
 import {
   Module,
   Global,
-  OnApplicationBootstrap,
-  OnApplicationShutdown,
   Inject,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';

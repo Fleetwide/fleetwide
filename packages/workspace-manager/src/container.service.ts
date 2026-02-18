@@ -1,4 +1,4 @@
-import Docker from 'dockerode';
+import type Docker from 'dockerode';
 import { PassThrough } from 'node:stream';
 import type { ContainerExecResult } from '@fleetwide/core';
 import { createLogger } from '@fleetwide/core';
