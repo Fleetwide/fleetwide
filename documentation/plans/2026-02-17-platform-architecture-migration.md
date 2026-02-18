@@ -19,7 +19,9 @@ All architectural decisions have been confirmed:
 | **Agent SDK** | Abstract multi-provider | Provider interface allows Claude, OpenAI, and future providers to be swapped in |
 | **Communication** | REST + WebSocket | REST for CRUD, WebSocket for real-time agent streaming. No gRPC complexity |
 | **Plugin system** | In-process plugins (v1) | Simple, fast, admin-controlled. Container isolation deferred to v2 for untrusted plugins |
-| **Repo access** | Git clone to local disk | Full git history available, fast operations, works offline |
+| **Repo import** | GitHub App + manual URL/path | GitHub App for org-wide repo discovery and import; manual git URL or local path as fallback |
+| **Repo storage** | Git clone to local disk | Full git history available, fast operations, works offline |
+| **Change verification** | Branch → push → local preview → approve | Agent works on a branch, pushes to GitHub, user pulls locally to test, then approves to create PR. Git is the sync mechanism — no web terminal or file sync needed |
 
 ---
 
@@ -53,12 +55,13 @@ The Consola codebase (~116 TypeScript files) is a three-process Electron app wit
 
 A running platform where:
 1. A user opens `http://localhost:3000` and sees a fleet dashboard
-2. They register repositories (git clone to local disk)
+2. They connect their GitHub account via a GitHub App installation and import repositories (or add them manually via URL/path)
 3. They can run AI agents against any repo, or across the entire fleet
-4. Agents can be scheduled to run on cron expressions
-5. GitHub, Slack, and CI/CD integrations deliver notifications and automate workflows
-6. Everything runs self-hosted via `docker compose up`
-7. All actions are audit-logged and permission-controlled
+4. Agent changes are pushed to a preview branch on GitHub — the user pulls locally to verify, then approves to create a PR
+5. Agents can be scheduled to run on cron expressions
+6. GitHub, Slack, and CI/CD integrations deliver notifications and automate workflows
+7. Everything runs self-hosted via `docker compose up`
+8. All actions are audit-logged and permission-controlled
 
 ---
 
@@ -67,7 +70,8 @@ A running platform where:
 - **No SaaS / cloud hosting** — self-hosted only, per OpenClaw principles
 - **No multi-tenancy** — single org/team per deployment
 - **No Electron desktop app** (yet) — web + CLI first; desktop becomes a future thin client
-- **No OAuth/SAML in v1** — auth middleware is extensible, but v1 ships with API keys + JWT
+- **No OAuth/SAML for user login in v1** — user auth is API keys + JWT; GitHub OAuth is used only for GitHub App installation flow, not for platform login
+- **No full GitHub integration in v1** — GitHub App in Phase 1 is for repo discovery and import only; webhooks, PR actions, and event-driven triggers are Phase 4
 - **No container-isolated plugins in v1** — in-process only; container isolation is v2
 - **No mobile app** — web is responsive but no native mobile
 - **No SQLite mode** — PostgreSQL only simplifies the data layer
@@ -88,6 +92,7 @@ A running platform where:
 | **Frontend** | React + Vite | React 19, Vite 6+ |
 | **State Management** | Zustand | 5+ |
 | **UI Components** | Radix UI + Tailwind CSS | Radix latest, Tailwind 4+ |
+| **GitHub API** | Octokit (+ @octokit/auth-app) | Latest |
 | **CLI** | Commander.js | 12+ |
 | **Testing** | Vitest + Testing Library | Latest |
 | **Linting** | ESLint + Prettier | ESLint 9+, flat config |
@@ -142,7 +147,7 @@ fleetwide/
 | `.prettierrc` | Prettier config |
 | `.gitignore` | Node modules, dist, .env, coverage, etc. |
 | `.nvmrc` | Pin Node.js 22+ |
-| `.env.example` | Template for environment variables |
+| `.env.example` | Template for environment variables (includes GitHub App credentials) |
 
 **Key configuration details:**
 
@@ -196,13 +201,14 @@ packages:
 | `packages/core/tsconfig.json` | Extends base tsconfig |
 | `packages/core/src/index.ts` | Barrel export |
 | `packages/core/src/types/agent.ts` | Agent types: `AgentConfig`, `AgentStatus`, `AgentEvent`, `AgentProvider` |
-| `packages/core/src/types/repository.ts` | Repo types: `Repository`, `RepoStatus`, `RepoMetadata` |
+| `packages/core/src/types/repository.ts` | Repo types: `Repository`, `RepoStatus`, `RepoMetadata`, `RepoSource` |
+| `packages/core/src/types/github.ts` | GitHub App types: `GitHubInstallation`, `GitHubRepo`, `GitHubAppConfig` |
 | `packages/core/src/types/schedule.ts` | Schedule types: `Schedule`, `ScheduleStatus`, `CronExpression` |
 | `packages/core/src/types/integration.ts` | Integration types: `Integration`, `IntegrationConfig`, `IntegrationType` |
 | `packages/core/src/types/auth.ts` | Auth types: `ApiKey`, `JwtPayload`, `User`, `Permission` |
 | `packages/core/src/types/common.ts` | Common types: `PaginatedResult`, `ErrorResponse`, `ID` |
 | `packages/core/src/events/agent-events.ts` | Agent event enum and payload types |
-| `packages/core/src/events/system-events.ts` | System events (repo sync, schedule trigger, etc.) |
+| `packages/core/src/events/system-events.ts` | System events (repo sync, schedule trigger, session preview, etc.) |
 | `packages/core/src/utils/id.ts` | ID generation (nanoid or cuid2) |
 | `packages/core/src/utils/logger.ts` | Structured logger (pino) |
 | `packages/core/src/utils/errors.ts` | Custom error classes with error codes |
@@ -241,6 +247,8 @@ export interface AgentEvent {
 
 ```typescript
 // types/repository.ts
+export type RepoSource = 'github' | 'manual_url' | 'local_path';
+
 export interface Repository {
   id: string;
   name: string;
@@ -248,7 +256,9 @@ export interface Repository {
   remoteUrl?: string;    // Git remote URL
   defaultBranch: string;
   status: RepoStatus;
+  source: RepoSource;    // How this repo was imported
   metadata: RepoMetadata;
+  github?: GitHubRepoMetadata;  // Present when source === 'github'
   createdAt: Date;
   updatedAt: Date;
 }
@@ -260,6 +270,53 @@ export interface RepoMetadata {
   fileCount: number;
   lastCommitHash: string;
   lastCommitDate: Date;
+}
+
+export interface GitHubRepoMetadata {
+  githubId: number;            // GitHub's numeric repo ID
+  fullName: string;            // e.g., 'org/repo-name'
+  installationId: string;     // FK to github_installations
+  private: boolean;
+  htmlUrl: string;             // e.g., 'https://github.com/org/repo'
+}
+```
+
+```typescript
+// types/github.ts
+export interface GitHubAppConfig {
+  appId: string;
+  appSlug: string;              // App URL slug
+  privateKey: string;           // PEM-encoded private key (encrypted at rest)
+  clientId: string;
+  clientSecret: string;         // Encrypted at rest
+  webhookSecret?: string;       // For Phase 4 webhook verification
+}
+
+export interface GitHubInstallation {
+  id: string;                   // Internal ID
+  installationId: number;       // GitHub's installation ID
+  accountLogin: string;         // GitHub org or user login
+  accountType: 'Organization' | 'User';
+  accountAvatarUrl?: string;
+  permissions: Record<string, string>;  // e.g., { contents: 'read', metadata: 'read' }
+  repositorySelection: 'all' | 'selected';
+  suspendedAt?: Date;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+export interface GitHubDiscoveredRepo {
+  githubId: number;
+  name: string;
+  fullName: string;             // 'org/repo'
+  private: boolean;
+  defaultBranch: string;
+  htmlUrl: string;
+  cloneUrl: string;             // HTTPS clone URL
+  language?: string;
+  description?: string;
+  updatedAt: Date;
+  alreadyImported: boolean;     // Whether this repo is already in Fleetwide
 }
 ```
 
@@ -281,6 +338,8 @@ export interface RepoMetadata {
 | `packages/database/src/schema/sessions.ts` | Agent sessions table |
 | `packages/database/src/schema/schedules.ts` | Schedules table |
 | `packages/database/src/schema/integrations.ts` | Integrations table |
+| `packages/database/src/schema/github-installations.ts` | GitHub App installations table |
+| `packages/database/src/schema/github-app-config.ts` | GitHub App configuration (singleton) |
 | `packages/database/src/schema/audit-logs.ts` | Audit log table |
 | `packages/database/src/schema/api-keys.ts` | API keys table |
 | `packages/database/src/schema/users.ts` | Users table |
@@ -317,26 +376,80 @@ export const repoStatusEnum = pgEnum('repo_status', [
   'synced', 'syncing', 'error', 'uninitialized'
 ]);
 
+export const repoSourceEnum = pgEnum('repo_source', [
+  'github', 'manual_url', 'local_path'
+]);
+
 export const repositories = pgTable('repositories', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   path: text('path').notNull().unique(),
   remoteUrl: text('remote_url'),
   defaultBranch: text('default_branch').notNull().default('main'),
+  source: repoSourceEnum('source').notNull().default('manual_url'),
   status: repoStatusEnum('status').notNull().default('uninitialized'),
   metadata: jsonb('metadata').$type<RepoMetadata>(),
+  // GitHub-specific fields (populated when source === 'github')
+  githubId: integer('github_id'),
+  githubFullName: text('github_full_name'),        // 'org/repo-name'
+  githubInstallationId: text('github_installation_id')
+    .references(() => githubInstallations.id),
+  githubPrivate: boolean('github_private'),
+  githubHtmlUrl: text('github_html_url'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// schema/github-installations.ts
+export const githubInstallations = pgTable('github_installations', {
+  id: text('id').primaryKey(),
+  installationId: integer('installation_id').notNull().unique(),  // GitHub's installation ID
+  accountLogin: text('account_login').notNull(),                  // GitHub org or user login
+  accountType: text('account_type').notNull(),                    // 'Organization' or 'User'
+  accountAvatarUrl: text('account_avatar_url'),
+  permissions: jsonb('permissions').$type<Record<string, string>>(),
+  repositorySelection: text('repository_selection').notNull(),    // 'all' or 'selected'
+  suspendedAt: timestamp('suspended_at'),
+  createdAt: timestamp('created_at').defaultNow().notNull(),
+  updatedAt: timestamp('updated_at').defaultNow().notNull(),
+});
+
+// schema/github-app-config.ts (singleton — at most one row)
+export const githubAppConfig = pgTable('github_app_config', {
+  id: text('id').primaryKey().default('default'),
+  appId: text('app_id').notNull(),
+  appSlug: text('app_slug').notNull(),
+  privateKey: text('private_key').notNull(),       // PEM, encrypted at rest
+  clientId: text('client_id').notNull(),
+  clientSecret: text('client_secret').notNull(),   // Encrypted at rest
+  webhookSecret: text('webhook_secret'),            // For Phase 4
   createdAt: timestamp('created_at').defaultNow().notNull(),
   updatedAt: timestamp('updated_at').defaultNow().notNull(),
 });
 
 // schema/sessions.ts
+export const sessionStatusEnum = pgEnum('session_status', [
+  'active',           // Agent is running
+  'preview',          // Agent done, branch pushed to GitHub, awaiting user review
+  'approved',         // User approved, PR created
+  'rejected',         // User rejected, branch deleted
+  'completed',        // Session finished (no code changes, or read-only task)
+  'failed',           // Agent errored out
+]);
+
 export const sessions = pgTable('sessions', {
   id: text('id').primaryKey(),
   agentId: text('agent_id').references(() => agents.id),
   repositoryId: text('repository_id').references(() => repositories.id),
   name: text('name'),
   messages: jsonb('messages').$type<SessionMessage[]>().default([]),
-  status: text('status').notNull().default('active'),
+  status: sessionStatusEnum('status').notNull().default('active'),
+  // Branch-based preview workflow
+  branchName: text('branch_name'),             // e.g., 'fleetwide/session-abc123'
+  branchPushed: boolean('branch_pushed').default(false),
+  prUrl: text('pr_url'),                       // Set after approval creates PR
+  prNumber: integer('pr_number'),
+  diffSummary: jsonb('diff_summary').$type<DiffSummary>(),  // Files changed, insertions, deletions
   costUsd: numeric('cost_usd', { precision: 10, scale: 6 }).default('0'),
   tokenCount: integer('token_count').default(0),
   createdAt: timestamp('created_at').defaultNow().notNull(),
@@ -573,11 +686,140 @@ volumes:
 
 ## Phase 1: Repository Fleet Management
 
-**Duration**: Weeks 3–4
-**Goal**: Repository registration, sync, fleet dashboard, and workspace-scoped agent sessions.
+**Duration**: Weeks 3–5
+**Goal**: GitHub App integration for repo discovery/import, repository registration, sync, fleet dashboard, and workspace-scoped agent sessions.
 **Dependencies**: Phase 0 complete.
 
-### 1.1 — packages/repo-manager
+### 1.1 — GitHub App Setup & Repo Import
+
+**Purpose**: Allow users to create/register a GitHub App, install it on their GitHub orgs/accounts, discover available repos, and import them into Fleetwide. This is the primary way to onboard repositories.
+
+**How GitHub Apps work (context):**
+1. Admin registers a GitHub App on GitHub (manually via github.com/settings/apps or via manifest flow)
+2. Admin enters the App credentials (App ID, private key, client ID/secret) in Fleetwide settings
+3. Admin (or org owners) install the App on their GitHub org → grants Fleetwide access to repos
+4. Fleetwide receives the installation ID via callback and stores it
+5. Fleetwide uses the installation access token to list repos, clone via HTTPS, etc.
+
+**Files to create:**
+
+| File | Purpose |
+|------|---------|
+| `packages/repo-manager/src/github/github-app.service.ts` | GitHub App authentication (JWT + installation tokens via Octokit) |
+| `packages/repo-manager/src/github/github-repo-discovery.service.ts` | List repos accessible via installation, with pagination |
+| `packages/repo-manager/src/github/github-import.service.ts` | Import selected repos: clone via installation token, register in DB |
+| `apps/backend/src/routes/github.routes.ts` | GitHub App config, installation callback, repo discovery endpoints |
+| `apps/web/src/pages/GitHubSetupPage.tsx` | GitHub App configuration page |
+| `apps/web/src/components/GitHubRepoImporter.tsx` | Repo discovery + selection + import UI |
+| `apps/web/src/stores/github.store.ts` | GitHub state (installations, discovered repos) |
+| `apps/web/src/services/github-client.ts` | HTTP client for GitHub endpoints |
+
+**Key implementation details:**
+
+```typescript
+// github-app.service.ts
+import { App as GitHubApp } from 'octokit';
+
+export class GitHubAppService {
+  private app: GitHubApp;
+
+  constructor(config: GitHubAppConfig) {
+    this.app = new GitHubApp({
+      appId: config.appId,
+      privateKey: config.privateKey,
+      oauth: {
+        clientId: config.clientId,
+        clientSecret: config.clientSecret,
+      },
+    });
+  }
+
+  // Get an authenticated Octokit instance for an installation
+  async getInstallationOctokit(installationId: number): Promise<Octokit>;
+
+  // Verify and process a new installation
+  async handleInstallationCallback(installationId: number): Promise<GitHubInstallation>;
+
+  // Refresh installation details from GitHub API
+  async refreshInstallation(installationId: number): Promise<GitHubInstallation>;
+}
+
+// github-repo-discovery.service.ts
+export class GitHubRepoDiscoveryService {
+  constructor(
+    private appService: GitHubAppService,
+    private repoRegistry: RepoRegistry,
+  ) {}
+
+  // List all repos accessible via a specific installation
+  async discoverRepos(installationId: string): Promise<GitHubDiscoveredRepo[]>;
+
+  // List repos across all installations
+  async discoverAllRepos(): Promise<GitHubDiscoveredRepo[]>;
+}
+
+// github-import.service.ts
+export class GitHubImportService {
+  constructor(
+    private appService: GitHubAppService,
+    private syncService: RepoSyncService,
+    private repoRegistry: RepoRegistry,
+  ) {}
+
+  // Import selected repos — clone via installation token, register in DB
+  async importRepos(opts: {
+    installationId: string;
+    repoIds: number[];        // GitHub repo IDs to import
+    basePath: string;         // Local base path for cloned repos
+  }): Promise<ImportResult[]>;
+
+  // Generate a clone URL with embedded installation token (short-lived)
+  async getAuthenticatedCloneUrl(
+    installationId: number,
+    cloneUrl: string,
+  ): Promise<string>;
+}
+```
+
+**GitHub App API endpoints:**
+
+```
+# GitHub App Configuration (admin only)
+GET    /api/github/config              # Get current GitHub App config (redacted secrets)
+POST   /api/github/config              # Set/update GitHub App credentials
+DELETE /api/github/config              # Remove GitHub App config
+
+# Installation Management
+GET    /api/github/installations       # List all installations
+POST   /api/github/installations/callback  # Handle GitHub App installation callback
+DELETE /api/github/installations/:id   # Remove an installation
+
+# Repo Discovery & Import
+GET    /api/github/repos                    # Discover repos across all installations
+GET    /api/github/repos/:installationId    # Discover repos for a specific installation
+POST   /api/github/repos/import             # Import selected repos (batch)
+
+# GitHub App Installation URL
+GET    /api/github/install-url         # Get the GitHub App installation URL for the user
+```
+
+**GitHub App Setup UI flow:**
+
+1. **Settings → GitHub App**: Admin enters App ID, private key, client ID/secret (or uses manifest-based creation)
+2. **Install on GitHub**: UI provides a link to `https://github.com/apps/{app-slug}/installations/new` → user installs on their org
+3. **Callback**: GitHub redirects back to Fleetwide with `installation_id` → Fleetwide stores the installation
+4. **Import Repos**: User sees a list of discovered repos grouped by org → selects repos to import → Fleetwide clones them
+5. **Dashboard**: Imported repos appear on the fleet dashboard with `source: 'github'` badge
+
+**Clone authentication for private repos:**
+
+GitHub App installations use short-lived installation access tokens for HTTPS clone:
+```
+git clone https://x-access-token:{token}@github.com/org/repo.git
+```
+The token is generated per-clone via `GitHubAppService.getInstallationOctokit()` and is valid for ~1 hour. For subsequent syncs (pull), a fresh token is generated each time.
+
+### 1.2 — packages/repo-manager
 
 **Purpose**: Repository fleet management — register repos, clone/sync them, perform git operations.
 
@@ -585,7 +827,7 @@ volumes:
 
 | File | Purpose |
 |------|---------|
-| `packages/repo-manager/package.json` | Dependencies: simple-git |
+| `packages/repo-manager/package.json` | Dependencies: simple-git, octokit, @octokit/auth-app |
 | `packages/repo-manager/src/index.ts` | Barrel export |
 | `packages/repo-manager/src/repo-registry.ts` | Register, list, update, remove repos |
 | `packages/repo-manager/src/repo-sync.service.ts` | Clone, pull, fetch repos from remote |
@@ -611,7 +853,16 @@ export class RepoRegistry {
 
 // repo-sync.service.ts
 export class RepoSyncService {
-  async cloneRepo(remoteUrl: string, targetPath: string): Promise<Repository>;
+  constructor(
+    private db: DatabaseService,
+    private githubAppService?: GitHubAppService,  // Optional — only when GitHub App is configured
+  ) {}
+
+  // Clone a repo — uses installation token for GitHub-sourced repos
+  async cloneRepo(remoteUrl: string, targetPath: string, opts?: {
+    source: RepoSource;
+    githubInstallationId?: number;
+  }): Promise<Repository>;
   async pullRepo(repoId: string): Promise<SyncResult>;
   async syncAll(): Promise<SyncResult[]>;
   async getStatus(repoId: string): Promise<RepoSyncStatus>;
@@ -622,7 +873,7 @@ export class RepoSyncService {
 - Extract git operations from `src/main/ipc-handlers.ts` (lines with `simpleGit` calls)
 - These are already Electron-independent, just need to be refactored into a proper service class
 
-### 1.2 — Repository API Routes
+### 1.3 — Repository API Routes
 
 **Files to modify/create:**
 
@@ -652,7 +903,7 @@ GET    /api/repos/:id/git/log        # Git log
 GET    /api/repos/:id/git/branches   # List branches
 ```
 
-### 1.3 — Fleet Dashboard UI
+### 1.4 — Fleet Dashboard UI
 
 **Files to create:**
 
@@ -662,18 +913,21 @@ GET    /api/repos/:id/git/branches   # List branches
 | `apps/web/src/pages/RepoDetailPage.tsx` | Single repo view — files, git status, agent chat |
 | `apps/web/src/components/RepoCard.tsx` | Repository card with status, language, last sync |
 | `apps/web/src/components/RepoList.tsx` | Repository list/grid with filtering |
-| `apps/web/src/components/AddRepoDialog.tsx` | Dialog to register a new repo (path or URL) |
+| `apps/web/src/components/AddRepoDialog.tsx` | Dialog to add a repo: "Import from GitHub" or manual (path/URL) |
 | `apps/web/src/components/FileBrowser.tsx` | File tree browser |
 | `apps/web/src/components/GitStatus.tsx` | Git status display |
 | `apps/web/src/stores/repo.store.ts` | Repository state management |
 | `apps/web/src/services/repo-client.ts` | HTTP client for repo endpoints |
 
 **Layout:**
-- Top nav: Dashboard | Repos | Agents | Schedules (greyed out) | Integrations (greyed out)
-- Dashboard: Grid of repo cards showing name, status, languages, last commit
+- Top nav: Dashboard | Repos | Agents | Settings | Schedules (greyed out) | Integrations (greyed out)
+- Dashboard: Grid of repo cards showing name, status, languages, last commit, source badge (GitHub / Manual)
 - Repo detail: Split view — file browser on left, agent chat on right
+- Settings → GitHub: App configuration, installations list, import flow
 
-### 1.4 — Workspace-Scoped Agent Sessions
+### 1.5 — Workspace-Scoped Agent Sessions & Preview Workflow
+
+**Purpose**: Agents work on branches, push to GitHub for user verification, and only create PRs after explicit approval. This lets users test agent changes locally using their own IDE, terminal, and dev environment — git is the sync mechanism.
 
 **Modifications:**
 
@@ -689,31 +943,131 @@ POST /api/agents/run
   }
 ```
 
-The agent runner now:
-1. Looks up the repository by ID
-2. Sets the working directory to the repo's local path
-3. Passes repo context (name, branch, recent commits) to the system prompt
-4. All file operations are scoped to the repo directory
+**Agent run lifecycle (branch-push-preview-approve):**
+
+1. **Start**: Agent runner looks up the repo, creates a working branch (`fleetwide/session-{id}`), and begins execution
+2. **Work**: Agent makes file changes, commits to the working branch on the server's local clone
+3. **Push**: When the agent completes, it pushes the branch to GitHub via the GitHub App's installation token. Session status → `preview`
+4. **Notify**: Backend emits a `session.preview_ready` event (WebSocket + optional Slack notification)
+5. **Local preview**: User pulls the branch locally to test:
+   ```bash
+   fleetwide agent preview <session-id>
+   # → Runs: git fetch origin && git checkout fleetwide/session-abc123
+   # → Shows: diff summary, files changed, instructions
+   ```
+6. **Verify**: User runs tests, starts dev server, reviews in IDE — full local environment
+7. **Approve or reject**:
+   ```bash
+   fleetwide agent approve <session-id>   # → Creates PR on GitHub, session status → approved
+   fleetwide agent reject <session-id>    # → Deletes remote branch, session status → rejected
+   ```
+
+**Key implementation details:**
+
+```typescript
+// packages/agent-engine/src/branch-manager.ts
+export class BranchManager {
+  constructor(
+    private gitService: GitService,
+    private githubAppService: GitHubAppService,
+  ) {}
+
+  // Create and checkout a working branch for the agent
+  async createWorkingBranch(repoPath: string, sessionId: string): Promise<string>;
+
+  // Push the branch to GitHub using installation token
+  async pushBranch(repoId: string, branchName: string): Promise<void>;
+
+  // Create a PR from the working branch
+  async createPullRequest(opts: {
+    repoId: string;
+    branchName: string;
+    title: string;
+    body: string;
+  }): Promise<{ prUrl: string; prNumber: number }>;
+
+  // Delete the remote branch (on reject)
+  async deleteRemoteBranch(repoId: string, branchName: string): Promise<void>;
+
+  // Get diff summary for a branch vs base
+  async getDiffSummary(repoPath: string, branchName: string): Promise<DiffSummary>;
+}
+
+export interface DiffSummary {
+  filesChanged: number;
+  insertions: number;
+  deletions: number;
+  files: Array<{
+    path: string;
+    status: 'added' | 'modified' | 'deleted' | 'renamed';
+    insertions: number;
+    deletions: number;
+  }>;
+}
+```
+
+**New API endpoints:**
+
+```
+# Session Preview & Approval
+GET    /api/agents/sessions/:id/diff       # Get diff summary for preview branch
+POST   /api/agents/sessions/:id/approve    # Approve: create PR on GitHub
+POST   /api/agents/sessions/:id/reject     # Reject: delete remote branch
+GET    /api/agents/sessions/:id/branch     # Get branch name and checkout instructions
+```
+
+**Non-GitHub repos (local path / manual URL):**
+
+For repos without a GitHub App connection (`source: 'local_path'` or `source: 'manual_url'` without push access):
+- Agent still works on a branch and commits locally
+- Preview is done via direct filesystem access (since the repo is on the same machine or accessible volume)
+- The approve step commits to the target branch locally instead of creating a PR
+- The CLI `preview` command checks out the branch in the user's local clone of the same repo
+
+**Files to create/modify:**
+
+| File | Purpose |
+|------|---------|
+| `packages/agent-engine/src/branch-manager.ts` | Branch creation, push, PR creation, cleanup |
+| `apps/backend/src/routes/sessions.routes.ts` | Add preview/approve/reject endpoints |
+| `apps/web/src/components/SessionPreview.tsx` | Preview UI: diff summary, approve/reject buttons, CLI instructions |
+| `apps/web/src/components/DiffViewer.tsx` | File-level diff display |
 
 ### Success Criteria — Phase 1
 
 #### Automated Verification:
 - [ ] `pnpm turbo build` succeeds
 - [ ] `pnpm turbo typecheck` passes
-- [ ] `pnpm turbo test` — repo-manager unit tests pass (registry, sync, git ops)
+- [ ] `pnpm turbo test` — repo-manager unit tests pass (registry, sync, git ops, GitHub services)
 - [ ] `POST /api/repos` with a valid git URL → returns 201 with repo object
 - [ ] `GET /api/repos` → returns list of registered repos
 - [ ] `POST /api/repos/:id/sync` → clones/pulls the repo to local disk
 - [ ] `GET /api/repos/:id/files` → returns directory listing
 - [ ] `GET /api/repos/:id/git/status` → returns git status
+- [ ] `POST /api/github/config` → stores GitHub App credentials
+- [ ] `GET /api/github/installations` → returns list of installations
+- [ ] `GET /api/github/repos` → returns discovered repos from installations
+- [ ] `POST /api/github/repos/import` → clones selected repos and registers them with `source: 'github'`
 
 #### Manual Verification:
-- [ ] Dashboard shows all registered repos with correct metadata
-- [ ] Can add a new repo via the UI (both local path and remote URL)
+- [ ] Dashboard shows all registered repos with correct metadata and source badges
+- [ ] Can configure GitHub App credentials via Settings → GitHub
+- [ ] Can install the GitHub App on a GitHub org (via install URL from settings)
+- [ ] Installation callback successfully stores the installation in Fleetwide
+- [ ] Can discover repos from the GitHub installation and see them in a picker
+- [ ] Can select and import multiple repos from GitHub in a batch
+- [ ] Imported GitHub repos are cloned (including private repos via installation token)
+- [ ] Can also add repos manually via the UI (local path or remote URL)
 - [ ] Can browse files in a repo from the dashboard
 - [ ] Can open a repo and chat with an agent scoped to that repo
 - [ ] Agent correctly references files in the selected repo
-- [ ] Repo sync (pull) works and updates metadata
+- [ ] Agent changes are committed to a working branch (not main)
+- [ ] Branch is pushed to GitHub after agent completes (session status → preview)
+- [ ] `fleetwide agent preview <session-id>` fetches and checks out the branch locally
+- [ ] `fleetwide agent approve <session-id>` creates a PR on GitHub
+- [ ] `fleetwide agent reject <session-id>` deletes the remote branch
+- [ ] Non-GitHub repos: preview works via local branch checkout
+- [ ] Repo sync (pull) works for both GitHub and manual repos
 
 **Implementation Note**: After completing Phase 1 and all automated verification passes, pause for manual confirmation before proceeding to Phase 2.
 
@@ -803,7 +1157,7 @@ export interface AgentTask {
 
 ### 2.3 — FleetAgent (Cross-Repo Operations)
 
-**Purpose**: Execute the same operation across multiple repositories with result aggregation.
+**Purpose**: Execute the same operation across multiple repositories with result aggregation. Uses the same branch-push-preview-approve workflow from Phase 1 — each repo gets its own preview branch.
 
 **Files to create:**
 
@@ -818,16 +1172,21 @@ export class FleetAgent {
   constructor(
     private orchestrator: AgentOrchestrator,
     private repoRegistry: RepoRegistry,
+    private branchManager: BranchManager,
   ) {}
 
-  // Run the same prompt across selected repos
+  // Run the same prompt across selected repos — each gets a preview branch
   async runAcrossFleet(opts: FleetRunOptions): Promise<FleetRunResult>;
 
-  // Create a fleet-wide change proposal (dry run)
+  // Create a fleet-wide change proposal (all branches pushed, awaiting batch review)
   async proposeFleetChange(opts: FleetChangeOptions): Promise<FleetProposal>;
 
-  // Apply an approved proposal
-  async applyProposal(proposalId: string): Promise<FleetApplyResult>;
+  // Approve all repos in a proposal → creates PRs for each
+  async approveProposal(proposalId: string): Promise<FleetApplyResult>;
+
+  // Approve/reject individual repos within a proposal
+  async approveRepo(proposalId: string, repoId: string): Promise<void>;
+  async rejectRepo(proposalId: string, repoId: string): Promise<void>;
 }
 
 export interface FleetRunOptions {
@@ -838,6 +1197,20 @@ export interface FleetRunOptions {
   stopOnError?: boolean;
 }
 ```
+
+**Fleet preview workflow:**
+
+The fleet proposal uses the same branch-based mechanism as single-repo runs:
+1. Agent runs across N repos concurrently, each on its own `fleetwide/fleet-{proposalId}-{repoName}` branch
+2. All branches are pushed to GitHub
+3. User can preview each repo individually:
+   ```bash
+   fleetwide fleet preview <proposal-id>            # Show summary across all repos
+   fleetwide fleet preview <proposal-id> --repo X   # Checkout branch for repo X
+   fleetwide fleet approve <proposal-id>            # Approve all → create PRs
+   fleetwide fleet approve <proposal-id> --repo X   # Approve just repo X
+   fleetwide fleet reject <proposal-id>             # Reject all → delete branches
+   ```
 
 ### 2.4 — Permission & Approval Workflows
 
@@ -890,7 +1263,10 @@ GET  /api/agents/pool/stats       # Pool status (active, queued, etc.)
 #### Manual Verification:
 - [ ] Can initiate a fleet-wide run from the UI (e.g., "add LICENSE file to all repos")
 - [ ] Agent pool status updates in real-time on the dashboard
-- [ ] Fleet proposal shows per-repo diffs with approve/reject actions
+- [ ] Fleet proposal pushes preview branches for each repo
+- [ ] Fleet proposal shows per-repo diffs with approve/reject actions (individual and batch)
+- [ ] `fleetwide fleet preview <id>` shows summary; `--repo X` checks out that repo's branch
+- [ ] `fleetwide fleet approve <id>` creates PRs for all repos in the proposal
 - [ ] Can run multiple agents concurrently (visible in pool status)
 - [ ] Cross-repo operation with 10+ repos completes within reasonable time
 
@@ -1111,15 +1487,25 @@ export interface PluginContext {
 }
 ```
 
-### 4.2 — GitHub Connector
+### 4.2 — GitHub Connector (extends Phase 1 GitHub App)
 
 **File**: `packages/integrations/src/connectors/github.connector.ts`
 
-**Capabilities:**
-- **Inbound webhooks**: PR opened, push, issue created → trigger agent tasks
-- **Outbound actions**: Create PRs, comment on issues, create releases
-- **Data queries**: List repos, PRs, issues
-- **Auth**: GitHub App or Personal Access Token
+**Note**: This connector builds on the GitHub App infrastructure established in Phase 1 (app credentials, installations, Octokit instances). Phase 1 handles repo discovery and import. Phase 4 adds event-driven automation on top.
+
+**Capabilities (new in Phase 4):**
+- **Inbound webhooks**: PR opened, push, issue created → trigger agent tasks (requires `webhookSecret` in GitHub App config)
+- **Outbound actions**: Create PRs, comment on issues, create releases (via installation token)
+- **Data queries**: PRs, issues, checks (repo listing already handled by Phase 1)
+- **Auth**: Reuses the GitHub App from Phase 1 — no separate PAT needed
+
+**Additional files:**
+
+| File | Purpose |
+|------|---------|
+| `packages/integrations/src/connectors/github/webhook-handler.ts` | Parse and route GitHub webhook events |
+| `packages/integrations/src/connectors/github/pr-actions.ts` | Create PRs, post comments, request reviews |
+| `packages/integrations/src/connectors/github/issue-actions.ts` | Create/comment on issues |
 
 ### 4.3 — Slack Connector
 
@@ -1173,9 +1559,8 @@ GET    /api/integrations/webhooks/log       # View incoming webhook log
 - [ ] Config validation rejects invalid integration configs
 
 #### Manual Verification:
-- [ ] Can configure GitHub integration via UI with PAT
-- [ ] GitHub webhook (PR opened) triggers agent review on the repo
-- [ ] Agent creates a PR comment via GitHub connector
+- [ ] GitHub webhook (PR opened) triggers agent review on the repo (uses GitHub App from Phase 1)
+- [ ] Agent creates a PR comment via GitHub connector using installation token
 - [ ] Can configure Slack integration via UI
 - [ ] Agent completion sends notification to Slack channel
 - [ ] Integration status page shows health of all connectors
@@ -1217,6 +1602,12 @@ services:
       REDIS_URL: redis://redis:6379
       JWT_SECRET: ${JWT_SECRET}
       REPOS_BASE_PATH: /repos
+      # GitHub App (optional — configure via UI or env vars)
+      GITHUB_APP_ID: ${GITHUB_APP_ID:-}
+      GITHUB_APP_PRIVATE_KEY: ${GITHUB_APP_PRIVATE_KEY:-}
+      GITHUB_APP_CLIENT_ID: ${GITHUB_APP_CLIENT_ID:-}
+      GITHUB_APP_CLIENT_SECRET: ${GITHUB_APP_CLIENT_SECRET:-}
+      GITHUB_APP_WEBHOOK_SECRET: ${GITHUB_APP_WEBHOOK_SECRET:-}
     volumes:
       - repos:/repos
     depends_on:
@@ -1317,7 +1708,7 @@ GET /api/metrics          # Prometheus metrics (optional)
 | `apps/cli/src/commands/start.ts` | `fleetwide start` — start backend daemon |
 | `apps/cli/src/commands/status.ts` | `fleetwide status` — platform status |
 | `apps/cli/src/commands/repo.ts` | `fleetwide repo add/list/sync/remove` |
-| `apps/cli/src/commands/agent.ts` | `fleetwide agent run/list/abort` |
+| `apps/cli/src/commands/agent.ts` | `fleetwide agent run/list/abort/preview/diff/approve/reject` |
 | `apps/cli/src/commands/schedule.ts` | `fleetwide schedule create/list/enable/disable` |
 | `apps/cli/src/commands/auth.ts` | `fleetwide auth create-key/login` |
 | `apps/cli/src/api-client.ts` | HTTP client pointing to backend |
@@ -1332,7 +1723,8 @@ fleetwide status                         # Show platform health
 fleetwide stop                           # Stop all services
 
 # Repository management
-fleetwide repo add <url-or-path>         # Register repository
+fleetwide repo add <url-or-path>         # Register repository (manual)
+fleetwide repo import-github             # Import repos from GitHub App installations
 fleetwide repo list                      # List all repositories
 fleetwide repo sync [--all]              # Sync repositories
 fleetwide repo remove <id>               # Remove repository
@@ -1340,14 +1732,23 @@ fleetwide repo remove <id>               # Remove repository
 # Agent operations
 fleetwide agent run <repo> "prompt"      # Run agent on repo
 fleetwide agent run --fleet "prompt"     # Run across all repos
-fleetwide agent list                     # List active agents
+fleetwide agent list                     # List active/preview agents
 fleetwide agent abort <session-id>       # Abort running agent
+fleetwide agent preview <session-id>     # Fetch + checkout preview branch locally
+fleetwide agent diff <session-id>        # Show diff summary without checking out
+fleetwide agent approve <session-id>     # Approve changes → create PR on GitHub
+fleetwide agent reject <session-id>      # Reject changes → delete remote branch
 
 # Scheduling
 fleetwide schedule create --cron "0 9 * * *" --repos all "Review code"
 fleetwide schedule list
 fleetwide schedule enable <id>
 fleetwide schedule disable <id>
+
+# GitHub
+fleetwide github setup                   # Configure GitHub App credentials
+fleetwide github installations           # List GitHub App installations
+fleetwide github repos                   # Discover repos from installations
 
 # Auth
 fleetwide auth create-key --name "ci-key"
@@ -1384,7 +1785,7 @@ fleetwide auth login
 
 #### Manual Verification:
 - [ ] Fresh `docker compose up` on a new machine → platform fully functional
-- [ ] Can complete full workflow: register repo → run agent → see results
+- [ ] Can complete full workflow: import repo → run agent → preview branch locally → approve → PR created
 - [ ] Scheduled tasks run at correct times in Docker deployment
 - [ ] GitHub integration works end-to-end in Docker deployment
 - [ ] CLI provides equivalent functionality to web UI for core operations
@@ -1400,7 +1801,7 @@ fleetwide auth login
 - **packages/core**: Type validation, utility functions, error classes
 - **packages/database**: Repository classes, migration scripts (test PostgreSQL via testcontainers)
 - **packages/agent-engine**: Provider interface, agent pool limits, permission checks, session management
-- **packages/repo-manager**: Registry CRUD, git operations (mock simple-git), file browsing
+- **packages/repo-manager**: Registry CRUD, git operations (mock simple-git), file browsing, GitHub App auth (mock Octokit), repo discovery, import
 - **packages/scheduler**: Cron parsing, schedule CRUD, job processing (mock BullMQ)
 - **packages/integrations**: Plugin lifecycle, event routing, webhook handling
 
@@ -1411,11 +1812,14 @@ fleetwide auth login
 - **Integration → Agent**: Webhook triggers agent run
 
 ### End-to-End Tests
-- Register repo → run agent → verify file changes
+- Configure GitHub App → install on org → import repos → verify cloned to disk
+- Register repo → run agent → verify branch pushed → preview locally → approve → verify PR created
+- Register repo → run agent → reject → verify remote branch deleted
 - Create schedule → wait for trigger → verify run
-- Fleet operation → approve proposal → verify changes across repos
+- Fleet operation → preview per-repo branches → approve proposal → verify PRs across repos
 
 ### Manual Testing Checklist
+- [ ] Complete user journey: install → configure → import repos → run agent → preview locally → approve → PR created
 - [ ] Complete user journey: install → configure → register repos → run agents → schedule
 - [ ] Error scenarios: invalid API key, bad cron expression, network failure during sync
 - [ ] Performance: 10+ concurrent agents, 50+ registered repos
@@ -1471,3 +1875,5 @@ fleetwide auth login
 - [BullMQ](https://docs.bullmq.io/) — Job queue
 - [Turborepo](https://turbo.build/repo) — Monorepo build system
 - [Radix UI](https://www.radix-ui.com/) — UI component primitives
+- [Octokit](https://github.com/octokit/octokit.js) — GitHub API client
+- [GitHub Apps](https://docs.github.com/en/apps/creating-github-apps) — GitHub App documentation
