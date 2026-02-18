@@ -6,6 +6,7 @@ import { GitHubModule } from './github.module';
 import { ReposModule } from './repos.module';
 import { WorkspacesModule } from './workspaces.module';
 import { SessionsModule } from './sessions.module';
+import { WsModule } from './ws.module';
 
 @Module({
   imports: [
@@ -16,6 +17,7 @@ import { SessionsModule } from './sessions.module';
     ReposModule,
     WorkspacesModule,
     SessionsModule,
+    WsModule,
   ],
 })
 export class AppModule {}

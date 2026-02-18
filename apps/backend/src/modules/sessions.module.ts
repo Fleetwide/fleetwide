@@ -10,6 +10,7 @@ import { GitHubPullRequestService } from '../ports/services/GitHubPullRequestSer
 import { DrizzleSessionRepository } from '../infrastructure/repositories/DrizzleSessionRepository';
 import { OctokitPullRequestService } from '../infrastructure/services/OctokitPullRequestService';
 import { StartSession } from '../application/sessions/StartSession';
+import { FinalizeSession } from '../application/sessions/FinalizeSession';
 import { ApproveSession } from '../application/sessions/ApproveSession';
 import { RejectSession } from '../application/sessions/RejectSession';
 import { ExecInSession } from '../application/sessions/ExecInSession';
@@ -39,6 +40,12 @@ import { WorkspacesModule } from './workspaces.module';
       inject: [WorkspaceRepository, TOKENS.SESSION_ORCHESTRATOR],
       useFactory: (repo: WorkspaceRepository, orch: SessionOrchestrator) =>
         new StartSession(repo, orch),
+    },
+    {
+      provide: FinalizeSession,
+      inject: [SessionRepository, TOKENS.SESSION_ORCHESTRATOR],
+      useFactory: (repo: SessionRepository, orch: SessionOrchestrator) =>
+        new FinalizeSession(repo, orch),
     },
     {
       provide: ApproveSession,

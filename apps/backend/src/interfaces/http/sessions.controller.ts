@@ -10,6 +10,7 @@ import {
   HttpCode,
 } from '@nestjs/common';
 import { StartSession } from '../../application/sessions/StartSession';
+import { FinalizeSession } from '../../application/sessions/FinalizeSession';
 import { ApproveSession } from '../../application/sessions/ApproveSession';
 import { RejectSession } from '../../application/sessions/RejectSession';
 import { ExecInSession } from '../../application/sessions/ExecInSession';
@@ -20,6 +21,7 @@ import { SessionQueries } from '../../application/sessions/SessionQueries';
 export class SessionsController {
   constructor(
     @Inject(StartSession) private startSession: StartSession,
+    @Inject(FinalizeSession) private finalizeSession: FinalizeSession,
     @Inject(ApproveSession) private approveSession: ApproveSession,
     @Inject(RejectSession) private rejectSession: RejectSession,
     @Inject(ExecInSession) private execInSession: ExecInSession,
@@ -83,6 +85,13 @@ export class SessionsController {
   @Get(':id/branch')
   async getBranch(@Param('id') id: string) {
     const data = await this.queries.getBranch(id);
+    return { data };
+  }
+
+  @Post(':id/finalize')
+  @HttpCode(200)
+  async finalize(@Param('id') id: string) {
+    const data = await this.finalizeSession.execute(id);
     return { data };
   }
 

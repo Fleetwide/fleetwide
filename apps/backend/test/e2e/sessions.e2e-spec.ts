@@ -314,6 +314,44 @@ describe('Sessions (e2e)', () => {
     });
   });
 
+  describe('POST /api/sessions/:id/finalize', () => {
+    it('finalizes a running session', async () => {
+      const { workspace } = await seed.workspaceWithRepos(db);
+      const session = await seed.session(db, {
+        workspaceId: workspace.id,
+        status: 'running',
+      });
+
+      const response = await request(app.getHttpServer())
+        .post(`/api/sessions/${session.id}/finalize`)
+        .expect(200);
+
+      expect(response.body.data.branchName).toBeDefined();
+      expect(response.body.data.hasChanges).toBe(true);
+      expect(mocks.sessionOrchestrator.finalizeSession).toHaveBeenCalledWith(
+        session.id,
+      );
+    });
+
+    it('returns 404 for non-existent session', async () => {
+      await request(app.getHttpServer())
+        .post('/api/sessions/non-existent/finalize')
+        .expect(404);
+    });
+
+    it('returns validation error for non-running session', async () => {
+      const { workspace } = await seed.workspaceWithRepos(db);
+      const session = await seed.session(db, {
+        workspaceId: workspace.id,
+        status: 'preview',
+      });
+
+      await request(app.getHttpServer())
+        .post(`/api/sessions/${session.id}/finalize`)
+        .expect(400);
+    });
+  });
+
   describe('POST /api/sessions/:id/approve', () => {
     it('approves session with pushed branch', async () => {
       const { workspace } = await seed.workspaceWithRepos(db);

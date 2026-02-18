@@ -24,6 +24,11 @@ function createMocks() {
         containerId: 'mock-container-id',
         containerName: 'mock-container-name',
       }),
+      finalizeSession: vi.fn().mockResolvedValue({
+        branchName: 'fleetwide/session-mock',
+        diffSummary: { filesChanged: 1, insertions: 5, deletions: 2, files: [] },
+        hasChanges: true,
+      }),
       approveSession: vi.fn().mockResolvedValue([]),
       rejectSession: vi.fn().mockResolvedValue(undefined),
       exec: vi.fn().mockResolvedValue({ stdout: '', stderr: '', exitCode: 0 }),
