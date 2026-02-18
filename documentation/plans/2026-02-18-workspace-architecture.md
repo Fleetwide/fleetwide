@@ -853,7 +853,7 @@ type ServerMessage =
 ### Success Criteria — Phase 2
 
 #### Automated Verification:
-- [ ] `pnpm turbo build && pnpm turbo typecheck` passes
+- [x] `pnpm turbo build && pnpm turbo typecheck` passes
 - [ ] `POST /api/workspaces` → creates workspace with image + repos
 - [ ] `GET /api/workspaces` → lists workspaces with repo details
 - [ ] `POST /api/sessions` with workspaceId → container starts, repos clone, setup runs
