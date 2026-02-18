@@ -169,6 +169,54 @@ export const configureIntegrationSchema = z.object({
 });
 
 // ---------------------------------------------------------------------------
+// Workspace schemas
+// ---------------------------------------------------------------------------
+
+export const workspaceStatusSchema = z.enum(['active', 'error', 'archived']);
+
+export const createWorkspaceSchema = z.object({
+  name: z.string().min(1).max(100),
+  description: z.string().max(500).optional(),
+  image: z.string().min(1),
+  repositoryIds: z.array(z.string()).min(1),
+  setupCommands: z.array(z.string()).default([]),
+  environmentVariables: z.record(z.string()).default({}),
+  memorySizeMb: z.number().int().min(128).max(8192).default(512),
+  cpuCount: z.number().int().min(1).max(8).default(1),
+});
+
+export const updateWorkspaceSchema = z.object({
+  name: z.string().min(1).max(100).optional(),
+  description: z.string().max(500).optional(),
+  image: z.string().min(1).optional(),
+  setupCommands: z.array(z.string()).optional(),
+  environmentVariables: z.record(z.string()).optional(),
+  memorySizeMb: z.number().int().min(128).max(8192).optional(),
+  cpuCount: z.number().int().min(1).max(8).optional(),
+});
+
+export const runAgentInWorkspaceSchema = z.object({
+  workspaceId: z.string(),
+  prompt: z.string().min(1),
+  providerId: z.string().default('claude'),
+  model: z.string().optional(),
+  systemPrompt: z.string().optional(),
+});
+
+export const sessionStatusSchema = z.enum([
+  'starting',
+  'setup',
+  'running',
+  'finalizing',
+  'preview',
+  'approved',
+  'rejected',
+  'completed',
+  'failed',
+  'expired',
+]);
+
+// ---------------------------------------------------------------------------
 // WebSocket message schemas
 // ---------------------------------------------------------------------------
 

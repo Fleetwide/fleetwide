@@ -121,7 +121,18 @@ export type PlatformEventType =
   | 'schedule.completed'
   | 'fleet.proposal_created'
   | 'fleet.proposal_approved'
-  | 'fleet.proposal_rejected';
+  | 'fleet.proposal_rejected'
+  | 'session.starting'
+  | 'session.setup'
+  | 'session.running'
+  | 'session.finalizing'
+  | 'session.preview_ready'
+  | 'session.approved'
+  | 'session.rejected'
+  | 'session.completed'
+  | 'session.failed'
+  | 'session.expired'
+  | 'session.message';
 
 export interface PlatformEvent {
   type: PlatformEventType;

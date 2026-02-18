@@ -4,3 +4,4 @@ export * from './repository.js';
 export * from './schedule.js';
 export * from './integration.js';
 export * from './auth.js';
+export * from './workspace.js';

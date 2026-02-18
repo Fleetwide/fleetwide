@@ -79,6 +79,64 @@ export function fleetProposalRejectedEvent(proposalId: string, reason?: string):
 }
 
 // ---------------------------------------------------------------------------
+// Session lifecycle event constructors
+// ---------------------------------------------------------------------------
+
+export function sessionStartingEvent(sessionId: string, workspaceId: string): PlatformEvent {
+  return createPlatformEvent('session.starting', { sessionId, workspaceId });
+}
+
+export function sessionSetupEvent(sessionId: string, workspaceId: string): PlatformEvent {
+  return createPlatformEvent('session.setup', { sessionId, workspaceId });
+}
+
+export function sessionRunningEvent(sessionId: string, workspaceId: string): PlatformEvent {
+  return createPlatformEvent('session.running', { sessionId, workspaceId });
+}
+
+export function sessionFinalizingEvent(sessionId: string): PlatformEvent {
+  return createPlatformEvent('session.finalizing', { sessionId });
+}
+
+export function sessionPreviewReadyEvent(
+  sessionId: string,
+  branchName: string,
+): PlatformEvent {
+  return createPlatformEvent('session.preview_ready', { sessionId, branchName });
+}
+
+export function sessionApprovedEvent(
+  sessionId: string,
+  prUrl?: string,
+  prNumber?: number,
+): PlatformEvent {
+  return createPlatformEvent('session.approved', { sessionId, prUrl, prNumber });
+}
+
+export function sessionRejectedEvent(sessionId: string): PlatformEvent {
+  return createPlatformEvent('session.rejected', { sessionId });
+}
+
+export function sessionCompletedEvent(sessionId: string): PlatformEvent {
+  return createPlatformEvent('session.completed', { sessionId });
+}
+
+export function sessionFailedEvent(sessionId: string, error: string): PlatformEvent {
+  return createPlatformEvent('session.failed', { sessionId, error });
+}
+
+export function sessionExpiredEvent(sessionId: string): PlatformEvent {
+  return createPlatformEvent('session.expired', { sessionId });
+}
+
+export function sessionMessageEvent(
+  sessionId: string,
+  role: 'user' | 'assistant',
+): PlatformEvent {
+  return createPlatformEvent('session.message', { sessionId, role });
+}
+
+// ---------------------------------------------------------------------------
 // Event type guard
 // ---------------------------------------------------------------------------
 
