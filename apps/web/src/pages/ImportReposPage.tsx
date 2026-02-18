@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Check, Github, Lock, Search, Loader2 } from 'lucide-react';
 import { useGitHubStore } from '../stores/github.store.js';
-import type { DiscoveredRepo, ImportResult } from '../services/api-client.js';
+import type { ImportResult } from '../services/api-client.js';
 
 export function ImportReposPage() {
   const {

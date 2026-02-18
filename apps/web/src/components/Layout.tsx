@@ -1,8 +1,9 @@
 import { Link, useLocation } from 'react-router-dom';
-import { GitBranch, Github, Home, Settings } from 'lucide-react';
+import { Box, GitBranch, Github, Home, Settings } from 'lucide-react';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: Home },
+  { path: '/workspaces', label: 'Workspaces', icon: Box },
   { path: '/import', label: 'Import', icon: GitBranch },
   { path: '/settings/github', label: 'GitHub', icon: Github },
 ];
@@ -20,7 +21,10 @@ export function Layout({ children }: { children: React.ReactNode }) {
 
         <ul className="space-y-1 flex-1">
           {navItems.map((item) => {
-            const active = location.pathname === item.path;
+            const active =
+              item.path === '/'
+                ? location.pathname === '/'
+                : location.pathname.startsWith(item.path);
             return (
               <li key={item.path}>
                 <Link

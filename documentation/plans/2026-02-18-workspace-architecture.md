@@ -631,10 +631,10 @@ The session detail page shows:
 ### Success Criteria — Phase 4
 
 #### Automated Verification:
-- [ ] `pnpm turbo build && pnpm turbo typecheck` passes
-- [ ] Web app builds and serves without errors
-- [ ] Workspace creation wizard completes and creates workspace via API
-- [ ] Session streaming displays output in real-time via WebSocket
+- [x] `pnpm turbo build && pnpm turbo typecheck` passes
+- [x] Web app builds and serves without errors
+- [x] Workspace creation wizard completes and creates workspace via API
+- [x] Session streaming displays output in real-time via WebSocket
 
 #### Manual Verification:
 - [ ] Can create a workspace via the wizard with image + repos + setup commands
