@@ -88,3 +88,14 @@ interfaces/http/  →  application/  →  ports/  ←  infrastructure/
 - **Formatting**: Prettier — single quotes, trailing commas, 100 char width, semicolons.
 - **ESLint**: `@typescript-eslint/no-unused-vars` errors (except `_` prefixed), `no-explicit-any` warns.
 - **Testing**: Vitest with globals enabled. Tests in `src/__tests__/`, named `*.test.ts`.
+
+## Post-Change Verification
+
+After making code changes, always run typecheck and lint on affected packages before considering the task complete:
+
+```bash
+pnpm --filter @fleetwide/<affected-pkg> typecheck
+pnpm --filter @fleetwide/<affected-pkg> lint
+```
+
+Fix any errors before responding.
