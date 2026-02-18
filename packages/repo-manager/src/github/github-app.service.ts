@@ -13,6 +13,7 @@ export interface GitHubAppManifest {
   name: string;
   url: string;
   redirect_url: string;
+  setup_url: string;
   public: boolean;
   default_permissions: Record<string, string>;
   default_events: string[];
@@ -77,10 +78,12 @@ export class GitHubAppService {
    * The callbackUrl is where GitHub redirects after app creation.
    */
   generateManifest(callbackUrl: string): GitHubAppManifest {
+    const baseUrl = callbackUrl.replace('/api/github/manifest/callback', '');
     return {
       name: 'Fleetwide',
-      url: callbackUrl.replace('/api/github/manifest/callback', ''),
+      url: baseUrl,
       redirect_url: callbackUrl,
+      setup_url: `${baseUrl}/api/github/installations/callback`,
       public: false,
       default_permissions: {
         contents: 'read',
