@@ -9,6 +9,8 @@
     "start": "node dist/main.js",
     "lint": "eslint src/",
     "typecheck": "tsc --noEmit",
+    "test:e2e": "vitest run --config vitest.config.e2e.ts",
+    "test:e2e:watch": "vitest --config vitest.config.e2e.ts",
     "clean": "rm -rf dist *.tsbuildinfo"
   },
   "dependencies": {
@@ -16,17 +18,28 @@
     "@fleetwide/database": "workspace:*",
     "@fleetwide/repo-manager": "workspace:*",
     "@fleetwide/workspace-manager": "workspace:*",
-    "drizzle-orm": "^0.38.0",
     "@nestjs/common": "^11.0.0",
+    "@nestjs/config": "^4.0.0",
     "@nestjs/core": "^11.0.0",
     "@nestjs/platform-express": "^11.0.0",
-    "@nestjs/config": "^4.0.0",
+    "drizzle-orm": "^0.38.0",
+    "express": "^5.2.1",
     "reflect-metadata": "^0.2.0",
     "rxjs": "^7.8.0"
   },
   "devDependencies": {
+    "@faker-js/faker": "^10.3.0",
+    "@nestjs/testing": "^11.1.14",
+    "@swc/core": "^1.15.11",
+    "@testcontainers/postgresql": "^11.12.0",
     "@types/express": "^5.0.0",
+    "@types/supertest": "^6.0.3",
+    "fishery": "^2.4.0",
+    "postgres": "^3.4.5",
+    "supertest": "^7.2.2",
+    "testcontainers": "^11.12.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.3"
+    "typescript": "^5.7.3",
+    "unplugin-swc": "^1.5.9"
   }
 }
