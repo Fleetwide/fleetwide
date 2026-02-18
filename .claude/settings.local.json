@@ -9,7 +9,29 @@
       "WebSearch",
       "WebFetch(domain:docs.docker.com)",
       "Bash(git add:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(pnpm turbo test:*)",
+      "Bash(git -C /Users/javiertarazagagomez/Development/personal/fleetwide log --oneline -5)",
+      "Bash(git -C:*)",
+      "WebFetch(domain:hono.dev)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:node.testcontainers.org)",
+      "WebFetch(domain:testcontainers.com)",
+      "Bash(pnpm --filter @fleetwide/backend test:e2e:*)",
+      "Bash(pnpm --filter @fleetwide/backend add:*)",
+      "Bash(pnpm --filter @fleetwide/backend lint:*)",
+      "Bash(pnpm --filter @fleetwide/backend typecheck:*)",
+      "Bash(pnpm --filter @fleetwide/agent-engine typecheck:*)",
+      "Bash(pnpm --filter @fleetwide/agent-engine build:*)",
+      "Bash(pnpm --filter @fleetwide/agent-engine lint:*)",
+      "Bash(pnpm --filter @fleetwide/web add:*)",
+      "Bash(pnpm --filter @fleetwide/web typecheck:*)",
+      "Bash(pnpm --filter @fleetwide/web lint:*)",
+      "Bash(pnpm lint:*)",
+      "Bash(pnpm eslint:*)",
+      "Bash(echo:*)",
+      "Bash(pnpm typecheck:*)",
+      "Bash(node -e:*)"
     ]
   }
 }
