@@ -27,8 +27,8 @@ export async function getGitHubStatus() {
   }>('/github/status');
 }
 
-export async function getManifestStartUrl() {
-  return request<{ url: string }>('/github/manifest/start');
+export async function getManifestStartData() {
+  return request<{ actionUrl: string; manifest: string }>('/github/manifest/start');
 }
 
 export async function disconnectGitHub() {

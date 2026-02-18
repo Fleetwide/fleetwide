@@ -49,17 +49,19 @@ describe('GitHub (e2e)', () => {
   });
 
   describe('GET /api/github/manifest/start', () => {
-    it('returns manifest creation URL', async () => {
-      mocks.githubAppService.getManifestCreationUrl.mockReturnValue(
-        'https://github.com/settings/apps/new?manifest=test',
-      );
+    it('returns manifest creation data for POST form submission', async () => {
+      mocks.githubAppService.getManifestCreationData.mockReturnValue({
+        actionUrl: 'https://github.com/settings/apps/new',
+        manifest: '{"name":"Fleetwide"}',
+      });
 
       const response = await request(app.getHttpServer())
         .get('/api/github/manifest/start')
         .expect(200);
 
-      expect(response.body.url).toContain('github.com');
-      expect(mocks.githubAppService.getManifestCreationUrl).toHaveBeenCalled();
+      expect(response.body.actionUrl).toBe('https://github.com/settings/apps/new');
+      expect(response.body.manifest).toBeDefined();
+      expect(mocks.githubAppService.getManifestCreationData).toHaveBeenCalled();
     });
   });
 

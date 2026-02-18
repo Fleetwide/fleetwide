@@ -13,7 +13,6 @@ export interface GitHubAppManifest {
   name: string;
   url: string;
   redirect_url: string;
-  hook_attributes: { url: string; active: boolean };
   public: boolean;
   default_permissions: Record<string, string>;
   default_events: string[];
@@ -82,10 +81,6 @@ export class GitHubAppService {
       name: 'Fleetwide',
       url: callbackUrl.replace('/api/github/manifest/callback', ''),
       redirect_url: callbackUrl,
-      hook_attributes: {
-        url: callbackUrl.replace('/manifest/callback', '/webhooks'),
-        active: false,
-      },
       public: false,
       default_permissions: {
         contents: 'read',
@@ -96,13 +91,15 @@ export class GitHubAppService {
   }
 
   /**
-   * Build the URL to redirect the user to for GitHub App creation.
-   * The user will see a pre-filled "Create GitHub App" form on GitHub.
+   * Return the action URL and manifest JSON for GitHub App creation.
+   * The manifest must be submitted via a POST form to GitHub (not a query parameter).
    */
-  getManifestCreationUrl(callbackUrl: string): string {
+  getManifestCreationData(callbackUrl: string): { actionUrl: string; manifest: string } {
     const manifest = this.generateManifest(callbackUrl);
-    const encoded = encodeURIComponent(JSON.stringify(manifest));
-    return `https://github.com/settings/apps/new?manifest=${encoded}`;
+    return {
+      actionUrl: 'https://github.com/settings/apps/new',
+      manifest: JSON.stringify(manifest),
+    };
   }
 
   /**

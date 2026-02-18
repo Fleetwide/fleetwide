@@ -49,7 +49,10 @@ function createMocks() {
     githubAppService: {
       getStoredConfig: vi.fn().mockResolvedValue(null),
       getInstallationsCount: vi.fn().mockResolvedValue(0),
-      getManifestCreationUrl: vi.fn().mockReturnValue('https://github.com/settings/apps/new'),
+      getManifestCreationData: vi.fn().mockReturnValue({
+        actionUrl: 'https://github.com/settings/apps/new',
+        manifest: '{"name":"Fleetwide"}',
+      }),
       exchangeManifestCode: vi.fn().mockResolvedValue(undefined),
       disconnect: vi.fn().mockResolvedValue(undefined),
       getInstallUrl: vi.fn().mockResolvedValue('https://github.com/apps/test/installations/new'),

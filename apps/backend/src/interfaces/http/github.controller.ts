@@ -50,8 +50,7 @@ export class GitHubController {
   @Get('manifest/start')
   getManifestStart(@Req() req: Request) {
     const callbackUrl = `${this.getBaseUrl(req)}/api/github/manifest/callback`;
-    const url = this.appService.getManifestCreationUrl(callbackUrl);
-    return { url };
+    return this.appService.getManifestCreationData(callbackUrl);
   }
 
   @Get('manifest/callback')

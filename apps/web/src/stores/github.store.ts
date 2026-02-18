@@ -46,8 +46,18 @@ export const useGitHubStore = create<GitHubState>((set, get) => ({
   startConnect: async () => {
     set({ isLoading: true, error: null });
     try {
-      const { url } = await api.getManifestStartUrl();
-      window.location.href = url;
+      const { actionUrl, manifest } = await api.getManifestStartData();
+      // GitHub requires the manifest to be submitted via POST form
+      const form = document.createElement('form');
+      form.method = 'POST';
+      form.action = actionUrl;
+      const input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = 'manifest';
+      input.value = manifest;
+      form.appendChild(input);
+      document.body.appendChild(form);
+      form.submit();
     } catch (e) {
       set({ isLoading: false, error: e instanceof Error ? e.message : 'Failed to start connection' });
     }
