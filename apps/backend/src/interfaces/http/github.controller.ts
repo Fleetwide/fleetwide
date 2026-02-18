@@ -12,7 +12,7 @@ import {
   BadRequestException,
   Req,
 } from '@nestjs/common';
-import type { ConfigService } from '@nestjs/config';
+import { ConfigService } from '@nestjs/config';
 import type { Request, Response } from 'express';
 import type {
   GitHubAppService,
@@ -30,6 +30,7 @@ export class GitHubController {
     private discoveryService: GitHubDiscoveryService,
     @Inject(TOKENS.GITHUB_IMPORT_SERVICE)
     private importService: GitHubImportService,
+    @Inject(ConfigService)
     private config: ConfigService,
   ) {}
 
